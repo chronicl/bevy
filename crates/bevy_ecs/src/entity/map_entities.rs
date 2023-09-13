@@ -69,10 +69,10 @@ impl<'m> EntityMapper<'m> {
         }
 
         // this new entity reference is specifically designed to never represent any living entity
-        let new = Entity {
-            generation: self.dead_start.generation + self.generations,
-            index: self.dead_start.index,
-        };
+        let new = Entity::new(
+            self.dead_start.index(),
+            self.dead_start.generation() + self.generations,
+        );
         self.generations += 1;
 
         self.map.insert(entity, new);
@@ -108,7 +108,7 @@ impl<'m> EntityMapper<'m> {
         // SAFETY: Entities data is kept in a valid state via `EntityMap::world_scope`
         let entities = unsafe { world.entities_mut() };
         assert!(entities.free(self.dead_start).is_some());
-        assert!(entities.reserve_generations(self.dead_start.index, self.generations));
+        assert!(entities.reserve_generations(self.dead_start.index(), self.generations));
     }
 
     /// Creates an [`EntityMapper`] from a provided [`World`] and [`HashMap<Entity, Entity>`], then calls the
