@@ -41,7 +41,7 @@ pub use map_entities::*;
 
 use crate::{
     archetype::{ArchetypeId, ArchetypeRow},
-    identifier::{IdKind, Identifier},
+    identifier::{error::IdentifierError, masks::IdentifierMask, IdKind, Identifier},
     storage::{SparseSetIndex, TableId, TableRow},
 };
 use serde::{Deserialize, Serialize};
@@ -117,9 +117,9 @@ type IdCursor = isize;
 /// [`Query::get`]: crate::system::Query::get
 /// [`World`]: crate::world::World
 #[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
-#[repr(transparent)]
 pub struct Entity {
-    id: Identifier,
+    index: u32,
+    generation: u32,
 }
 
 pub(crate) enum AllocAtWithoutReplacement {
@@ -131,8 +131,13 @@ pub(crate) enum AllocAtWithoutReplacement {
 impl Entity {
     #[inline]
     pub(crate) const fn new(index: u32, generation: u32) -> Entity {
+        // Construct the `Identifier` to apply any masking logic to the lo/hi segments
+        let id = Identifier::new(index, generation, IdKind::Entity);
+
+        // We know this will never be invalid, as we constructed the valid id above.
         Self {
-            id: Identifier::new(index, generation, IdKind::Entity),
+            index: id.low(),
+            generation: id.high(),
         }
     }
 
@@ -186,9 +191,7 @@ impl Entity {
     /// a component.
     #[inline]
     pub const fn from_raw(index: u32) -> Entity {
-        Self {
-            id: Identifier::new(index, 0, IdKind::Entity),
-        }
+        Self::new(index, 0)
     }
 
     /// Convert to a form convenient for passing outside of rust.
@@ -199,7 +202,7 @@ impl Entity {
     /// No particular structure is guaranteed for the returned bits.
     #[inline]
     pub const fn to_bits(self) -> u64 {
-        self.id.to_bits()
+        Identifier::new(self.index(), self.generation(), IdKind::Entity).to_bits()
     }
 
     /// Reconstruct an `Entity` previously destructured with [`Entity::to_bits`].
@@ -212,16 +215,17 @@ impl Entity {
     #[inline]
     pub const fn from_bits(bits: u64) -> Self {
         let id = Identifier::from_bits(bits);
-        let kind = id.kind() as u64;
+        let kind = IdentifierMask::extract_kind_from_high(id.high()) as u32;
 
-        // Needed to convert the kind to u64 so that the comparison can be const
+        // Needed to convert the kind to u32 so that the comparison can be const
         assert!(
-            kind == IdKind::Entity as u64,
+            kind == IdKind::Entity as u32,
             "Attempted to initialise invalid bits as an entity"
         );
 
         Self {
-            id: Identifier::from_bits(bits),
+            index: id.low(),
+            generation: id.high(),
         }
     }
 
@@ -232,7 +236,7 @@ impl Entity {
     /// specific snapshot of the world, such as when serializing.
     #[inline]
     pub const fn index(self) -> u32 {
-        self.id.low()
+        self.index
     }
 
     /// Returns the generation of this Entity's index. The generation is incremented each time an
@@ -240,7 +244,31 @@ impl Entity {
     /// given index has been reused (index, generation) pairs uniquely identify a given Entity.
     #[inline]
     pub const fn generation(self) -> u32 {
-        self.id.high()
+        // Mask so not to expose any flags
+        IdentifierMask::extract_value_from_high(self.generation)
+    }
+}
+
+impl TryFrom<Identifier> for Entity {
+    type Error = IdentifierError;
+
+    fn try_from(value: Identifier) -> Result<Self, Self::Error> {
+        let kind = IdentifierMask::extract_kind_from_high(value.high());
+
+        if kind == IdKind::Entity {
+            Ok(Entity {
+                index: value.low(),
+                generation: value.high(),
+            })
+        } else {
+            Err(IdentifierError::InvalidEntityId(value.to_bits()))
+        }
+    }
+}
+
+impl From<Entity> for Identifier {
+    fn from(value: Entity) -> Self {
+        Identifier::new(value.index(), value.generation(), IdKind::Entity)
     }
 }
 
@@ -259,7 +287,10 @@ impl<'de> Deserialize<'de> for Entity {
         D: serde::Deserializer<'de>,
     {
         let id: u64 = serde::de::Deserialize::deserialize(deserializer)?;
-        Ok(Entity::from_bits(id))
+
+        // Try converting from an `Identifier` as this will allow us to determine
+        // if it is a valid entity or not
+        Entity::try_from(Identifier::from_bits(id)).map_err(serde::de::Error::custom)
     }
 }
 

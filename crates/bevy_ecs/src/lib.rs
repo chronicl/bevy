@@ -12,7 +12,7 @@ pub mod change_detection;
 pub mod component;
 pub mod entity;
 pub mod event;
-mod identifier;
+pub mod identifier;
 pub mod query;
 #[cfg(feature = "bevy_reflect")]
 pub mod reflect;
