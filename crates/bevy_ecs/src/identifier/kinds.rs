@@ -1,4 +1,4 @@
-/// The kinds of ID that [`Identifier`] can represent. Each
+/// The kinds of ID that [`super::Identifier`] can represent. Each
 /// variant imposes different usages of the low/high segments
 /// of the ID.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
