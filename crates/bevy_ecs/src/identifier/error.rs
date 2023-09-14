@@ -6,6 +6,7 @@ use std::fmt;
 /// An  Error type for [`super::Identifier`], mostly for providing error
 /// handling for convertions of an ID to a type abstracting over the ID bits.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[non_exhaustive]
 pub enum IdentifierError {
     /// A given ID has an invalid configuration of bits for converting to an [`crate::entity::Entity`].
     InvalidEntityId(u64),

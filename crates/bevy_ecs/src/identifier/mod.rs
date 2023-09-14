@@ -9,14 +9,14 @@ pub mod error;
 pub(crate) mod kinds;
 pub(crate) mod masks;
 
-/// A unified identifier for all entity/component/relationship pair IDs.
+/// A unified identifier for all entity and similar IDs.
 /// Has the same size as a `u64` integer, but the layout is split between a 32-bit low
-/// segment, a 30-bit high segment, and the significant bit reserved as type flags to denote
-/// entity/pair discrimination.
+/// segment, a 31-bit high segment, and the significant bit reserved as type flags to denote
+/// entity kinds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Identifier {
-    lo: u32,
-    hi: u32,
+    low: u32,
+    high: u32,
 }
 
 impl Identifier {
@@ -32,36 +32,36 @@ impl Identifier {
         let masked_value = IdentifierMask::extract_value_from_high(high);
 
         Self {
-            lo: low,
-            hi: IdentifierMask::pack_kind_into_high(masked_value, kind),
+            low,
+            high: IdentifierMask::pack_kind_into_high(masked_value, kind),
         }
     }
 
     /// Returns the value of the low segment of the [`Identifier`].
     #[inline]
     pub(crate) const fn low(self) -> u32 {
-        self.lo
+        self.low
     }
 
     /// Returns the value of the high segment of the [`Identifier`]. This
     /// does not apply any masking.
     #[inline]
     pub(crate) const fn high(self) -> u32 {
-        self.hi
+        self.high
     }
 
     /// Convert the [`Identifier`] into a `u64`.
     #[inline]
     pub(crate) const fn to_bits(self) -> u64 {
-        IdentifierMask::pack_into_u64(self.lo, self.hi)
+        IdentifierMask::pack_into_u64(self.low, self.high)
     }
 
     /// Convert a `u64` into an [`Identifier`].
     #[inline]
     pub(crate) const fn from_bits(value: u64) -> Self {
         Self {
-            lo: IdentifierMask::get_low(value),
-            hi: IdentifierMask::get_high(value),
+            low: IdentifierMask::get_low(value),
+            high: IdentifierMask::get_high(value),
         }
     }
 }

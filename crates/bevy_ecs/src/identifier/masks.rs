@@ -1,7 +1,12 @@
 use super::kinds::IdKind;
 
-const LOW_MASK: u64 = 0xFFFFFFFF;
-const HIGH_MASK: u32 = 0x7FFFFFFF;
+/// Mask for extracting the lower 32-bit segment of a `u64` value. Can be
+/// negated to extract the higher 32-bit segment.
+const LOW_MASK: u64 = 0x0000_0000_FFFF_FFFF;
+/// Mask for extracting the value portion of a 32-bit high segment. This
+/// yields 31-bits of total value, as the final bit (the most significant)
+/// is reserved as a flag bit. Can be negated to extract the flag bit.
+const HIGH_MASK: u32 = 0x7FFF_FFFF;
 
 /// Abstraction over masks needed to extract values/components of an [`super::Identifier`].
 pub(crate) struct IdentifierMask;
@@ -45,7 +50,7 @@ impl IdentifierMask {
         let bit = value & kind_mask;
 
         if bit == kind_mask {
-            IdKind::Pair
+            IdKind::Placeholder
         } else {
             IdKind::Entity
         }
@@ -58,6 +63,7 @@ mod tests {
 
     #[test]
     fn get_u64_parts() {
+        // Two distinct bit patterns per low/high component
         let value: u64 = 0x7FFF_FFFF_0000_000C;
 
         assert_eq!(IdentifierMask::get_low(value), 0x0000_000C);
@@ -66,33 +72,64 @@ mod tests {
 
     #[test]
     fn extract_kind() {
+        // All bits are ones.
         let high: u32 = 0xFFFF_FFFF;
 
-        assert_eq!(IdentifierMask::extract_kind_from_high(high), IdKind::Pair);
+        assert_eq!(
+            IdentifierMask::extract_kind_from_high(high),
+            IdKind::Placeholder
+        );
+
+        // Second and second to last bits are ones.
+        let high: u32 = 0x4000_0002;
+
+        assert_eq!(IdentifierMask::extract_kind_from_high(high), IdKind::Entity);
     }
 
     #[test]
     fn extract_high_value() {
+        // All bits are ones.
         let high: u32 = 0xFFFF_FFFF;
 
-        // Excludes the MSB as that is a flag bit.
+        // Excludes the most significant bit as that is a flag bit.
         assert_eq!(IdentifierMask::extract_value_from_high(high), 0x7FFF_FFFF);
+
+        // Start bit and end bit are ones.
+        let high: u32 = 0x8000_0001;
+
+        assert_eq!(IdentifierMask::extract_value_from_high(high), 0x0000_0001);
+
+        // Classic bit pattern.
+        let high: u32 = 0xDEAD_BEEF;
+
+        assert_eq!(IdentifierMask::extract_value_from_high(high), 0x5EAD_BEEF);
     }
 
     #[test]
     fn pack_kind_bits() {
+        // All bits are ones expect the most significant bit, which is zero
         let high: u32 = 0x7FFF_FFFF;
 
         assert_eq!(
-            IdentifierMask::pack_kind_into_high(high, IdKind::Pair),
+            IdentifierMask::pack_kind_into_high(high, IdKind::Placeholder),
             0xFFFF_FFFF
         );
 
-        let high: u32 = 0x00FF_FFFF;
+        // Arbitrary bit pattern
+        let high: u32 = 0x00FF_FF00;
 
         assert_eq!(
             IdentifierMask::pack_kind_into_high(high, IdKind::Entity),
-            0x00FF_FFFF
+            // Remains unchanged as before
+            0x00FF_FF00
+        );
+
+        // Bit pattern that almost spells a word
+        let high: u32 = 0x40FF_EEEE;
+
+        assert_eq!(
+            IdentifierMask::pack_kind_into_high(high, IdKind::Placeholder),
+            0xC0FF_EEEE // Milk and no sugar, please.
         );
     }
 
