@@ -3,27 +3,16 @@
 //! or other IDs that can be packed and expressed within a `u64` sized type.
 //! [`Identifier`]s cannot be created directly, only able to be converted from other
 //! compatible IDs.
-use self::masks::IdentifierMask;
+use self::{kinds::IdKind, masks::IdentifierMask};
 
 pub mod error;
+pub(crate) mod kinds;
 pub(crate) mod masks;
 
-/// The kinds of ID that [`Identifier`] can represent. Each
-/// variant imposes different usages of the low/high segments
-/// of the ID.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(u32)]
-pub(crate) enum IdKind {
-    /// An ID variant that is compatible with [`crate::entity::Entity`].
-    Entity = 0,
-    /// A future ID variant for Relationship Pairs.
-    Pair = 1 << (u32::BITS - 1),
-}
-
-/// Internal implementation detail for a unified identifier for all entity/component/relationship
-/// pair IDs. Has the same size as a `u64` integer, but the layout is split between a 32-bit low
-/// segment, a 30-bit high segment, and 2 most significant bits reserved as type flags to denote
-/// entity/pair discrimination and activation/deactivation bits.
+/// A unified identifier for all entity/component/relationship pair IDs.
+/// Has the same size as a `u64` integer, but the layout is split between a 32-bit low
+/// segment, a 30-bit high segment, and the significant bit reserved as type flags to denote
+/// entity/pair discrimination.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Identifier {
     lo: u32,
@@ -40,11 +29,11 @@ impl Identifier {
         // as these are used for the type flags. This means that the high
         // portion is only 31 bits, but this still provides 2^31
         // values/kinds/ids that can be stored in this segment.
-        let masked_high = IdentifierMask::extract_value_from_high(high) | (kind as u32);
+        let masked_value = IdentifierMask::extract_value_from_high(high);
 
         Self {
             lo: low,
-            hi: masked_high,
+            hi: IdentifierMask::pack_kind_into_high(masked_value, kind),
         }
     }
 
@@ -64,7 +53,7 @@ impl Identifier {
     /// Convert the [`Identifier`] into a `u64`.
     #[inline]
     pub(crate) const fn to_bits(self) -> u64 {
-        (self.hi as u64) << u32::BITS | (self.lo as u64)
+        IdentifierMask::pack_into_u64(self.lo, self.hi)
     }
 
     /// Convert a `u64` into an [`Identifier`].
@@ -79,8 +68,6 @@ impl Identifier {
 
 #[cfg(test)]
 mod tests {
-    use crate::identifier::masks::IdentifierMask;
-
     use super::*;
 
     #[test]

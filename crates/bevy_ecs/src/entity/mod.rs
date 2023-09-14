@@ -41,7 +41,7 @@ pub use map_entities::*;
 
 use crate::{
     archetype::{ArchetypeId, ArchetypeRow},
-    identifier::{error::IdentifierError, masks::IdentifierMask, IdKind, Identifier},
+    identifier::{error::IdentifierError, kinds::IdKind, masks::IdentifierMask, Identifier},
     storage::{SparseSetIndex, TableId, TableRow},
 };
 use serde::{Deserialize, Serialize};
@@ -202,7 +202,7 @@ impl Entity {
     /// No particular structure is guaranteed for the returned bits.
     #[inline]
     pub const fn to_bits(self) -> u64 {
-        Identifier::new(self.index(), self.generation(), IdKind::Entity).to_bits()
+        IdentifierMask::pack_into_u64(self.index, self.generation)
     }
 
     /// Reconstruct an `Entity` previously destructured with [`Entity::to_bits`].
@@ -214,18 +214,18 @@ impl Entity {
     /// This will likely panic if given output that is not from [`Entity::to_bits`].
     #[inline]
     pub const fn from_bits(bits: u64) -> Self {
-        let id = Identifier::from_bits(bits);
-        let kind = IdentifierMask::extract_kind_from_high(id.high()) as u32;
+        let high = IdentifierMask::get_high(bits);
+        let kind = IdentifierMask::extract_kind_from_high(high) as u8;
 
-        // Needed to convert the kind to u32 so that the comparison can be const
+        // Needed to convert the kind to an integer so that the comparison can be const
         assert!(
-            kind == IdKind::Entity as u32,
+            kind == IdKind::Entity as u8,
             "Attempted to initialise invalid bits as an entity"
         );
 
         Self {
-            index: id.low(),
-            generation: id.high(),
+            index: IdentifierMask::get_low(bits),
+            generation: high,
         }
     }
 
