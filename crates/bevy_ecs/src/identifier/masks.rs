@@ -13,37 +13,37 @@ pub(crate) struct IdentifierMask;
 
 impl IdentifierMask {
     /// Returns the low component from a `u64` value
-    #[inline]
+    #[inline(always)]
     pub(crate) const fn get_low(value: u64) -> u32 {
         (value & LOW_MASK) as u32
     }
 
     /// Returns the high component from a `u64` value
-    #[inline]
+    #[inline(always)]
     pub(crate) const fn get_high(value: u64) -> u32 {
         ((value & !LOW_MASK) >> u32::BITS) as u32
     }
 
     /// Pack a low and high `u32` values into a single `u64` value.
-    #[inline]
+    #[inline(always)]
     pub(crate) const fn pack_into_u64(low: u32, high: u32) -> u64 {
         ((high as u64) << u32::BITS) | (low as u64)
     }
 
     /// Pack the [`IdKind`] bits into a high segment.
-    #[inline]
+    #[inline(always)]
     pub(crate) const fn pack_kind_into_high(value: u32, kind: IdKind) -> u32 {
         value | ((kind as u32) << 24)
     }
 
     /// Extract the value component from a high segment of an [`super::Identifier`].
-    #[inline]
+    #[inline(always)]
     pub(crate) const fn extract_value_from_high(value: u32) -> u32 {
         value & HIGH_MASK
     }
 
     /// Extract the ID kind component from a high segment of an [`super::Identifier`].
-    #[inline]
+    #[inline(always)]
     pub(crate) const fn extract_kind_from_high(value: u32) -> IdKind {
         // The negated HIGH_MASK will extract just the bit we need for kind.
         let kind_mask = !HIGH_MASK;
